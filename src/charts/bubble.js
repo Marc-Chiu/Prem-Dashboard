@@ -1,18 +1,20 @@
 import * as d3 from "d3";
 import * as Plot from "@observablehq/plot";
 
+// currently this is not tie-breaking by points scored
+
 export function bubbleChart(leagueData) {
   const data = transformData(leagueData);
   const teams = new Set(data.map((d) => d.name));
   const weeks = new Set(data.map((d) => d.gameweek));
 
   return Plot.plot({
-    width: window.innerWidth - 200,
+    width: window.innerWidth - 300,
     height: 400,
     marginTop: 20,
     marginBottom: 40,
     marginLeft: 120,
-    marginRight: 60,
+    marginRight: 100,
     title: "League Standings Over Time", // Title of the chart
     x: {
       axis: "bottom",
@@ -27,8 +29,8 @@ export function bubbleChart(leagueData) {
     },
     color: {
       label: "Teams", // Color legend label
-      domain: Array.from(new Set(data.map((d) => d.name))), // Extract unique team names
-      range: d3.schemeTableau12, // Use a Tableau color scheme for distinct colors
+      domain: data.map((d) => d.name).sort((a, b) => a < b), // Extract unique team names
+      range: d3.schemeSet3, // Use a Tableau color scheme for distinct colors
     },
     marks: [
       bumpMarks(data, {
@@ -55,7 +57,7 @@ function bumpMarks(data, { r = 3, curve = "bump-x", tip, ...options }) {
         dx: -(5 + (r || options.strokeWidth / 2)),
         textAnchor: "end",
         fill: "currentColor",
-      })
+      }),
     ),
     Plot.text(
       data,
@@ -65,8 +67,8 @@ function bumpMarks(data, { r = 3, curve = "bump-x", tip, ...options }) {
         dx: 5 + (r || options.strokeWidth / 2),
         textAnchor: "start",
         fill: "currentColor",
-      })
-    )
+      }),
+    ),
   );
 }
 

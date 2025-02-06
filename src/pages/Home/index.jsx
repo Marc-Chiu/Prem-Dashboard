@@ -4,57 +4,32 @@ import {
   BubbleChartComponent,
   DraftStandings,
   ScoreByPosition,
+  XWinsComponent,
 } from "src/pages/Home/summary_cards.jsx";
-import
-import { getLeagueData } from "./api.js";
-import * as d3 from "d3";
-
-function joinData(array1, array2) {
-  array1.sort((a, b) => b.id - a.id);
-  array2.sort((a, b) => b.league_entry - a.league_entry);
-  return d3.zip(array2, array1);
-}
+import { getLeagueData } from "src/pages/Home/api.js";
+import { leaguePointsSummary, joinData } from "src/pages/Home/util.js";
+import { LeagueDataContext } from "src/pages/Home/contex.js";
 
 export function LeagueSummaryComponent() {
   const [selectedLeagueID, setSelectedLeagueID] = useState(null);
-  const [leagueData, setLeagueData] = useState(null);
-  const [pointsByPosition, setPointsByPosition] = useState(null);
-  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    const fetchLeagueData = async () => {
-      if (selectedLeagueID) {
-        setError(false); //
-        const data = await getLeagueData(selectedLeagueID);
-        if (data && data.league) {
-          setLeagueData(data);
-        } else {
-          setLeagueData(null);
-          setError(true);
-        }
-      }
-    };
-
-    fetchLeagueData();
-  }, [selectedLeagueID]);
-
-  const GenerateSummary = (event) => {
+  const GenerateSummary = () => {
     const leagueID = document.getElementById("leagueID").value.trim();
-    if (leagueID) {
-      setSelectedLeagueID(leagueID);
-    }
+    setSelectedLeagueID(leagueID);
   };
+
+  useEffect(() => {}, [selectedLeagueID]);
 
   return (
     <div className="justify-centers flex min-h-screen justify-center pt-20">
       <div className="pd-2 flex flex-col items-center gap-2">
-        <div className="pd-2 flex flex-col items-center justify-center gap-2">
+        <div id="enter-league" className="pd-2 flex flex-col items-center justify-center gap-2">
           <h1 className="text-3xl">Enter League ID</h1>
           <a href="https://draft.premierleague.com/api/bootstrap-dynamic">
             <p className="text-sm">Click here to find league ID</p>
           </a>
         </div>
-        <div className="flex gap-2">
+        <div id="league-input" className="flex gap-2">
           <input
             type="text"
             id="leagueID"
@@ -65,44 +40,71 @@ export function LeagueSummaryComponent() {
               }
             }}
           />
-          <button
-            className="rounded-2xl bg-gray-500 px-4 py-2 text-white hover:bg-gray-700"
-            onClick={GenerateSummary}
-          >
+          <button className="rounded-2xl bg-gray-500 px-4 py-2 text-white hover:bg-gray-700" onClick={GenerateSummary}>
             Sumbit
           </button>
         </div>
-        <div className="card chart">
-          <div id="league-summary-container">
-            {error ? (
-              <h2>League Not Found</h2>
-            ) : leagueData ? (
-              leagueData.league.scoring != "h" ? (
-                <h2>League is not h2h</h2>
-              ) : (
-                <div>
-                  <h2 className="mb-6 text-center text-xl font-bold text-gray-800">
-                    {leagueData.league.name}
-                  </h2>
-                  <div>
-                    <DraftStandings
-                      members={joinData(
-                        leagueData.league_entries,
-                        leagueData.standings,
-                      )}
-                    ></DraftStandings>
-                    <BubbleChartComponent
-                      leagueData={leagueData}
-                    ></BubbleChartComponent>
-                    <ScoreByPosition
-                      leagueEntries={leagueData.league_entries}
-                    ></ScoreByPosition>
-                  </div>
-                </div>
-              )
-            ) : (
-              <h2></h2>
-            )}
+        <Graphs leagueID={selectedLeagueID}></Graphs>
+      </div>
+    </div>
+  );
+}
+
+function Graphs({ leagueID }) {
+  const [loading, setLoading] = useState(true);
+  const [leagueData, setLeagueData] = useState(null);
+  const [pointsByPosition, setPointsByPosition] = useState(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!leagueID) {
+      return;
+    }
+    const fetchLeagueData = async () => {
+      try {
+        const data = await getLeagueData(leagueID);
+        const pointsByPosition = await leaguePointsSummary(data.league_entries);
+        setLeagueData(data);
+        setPointsByPosition(pointsByPosition);
+        setLoading(false);
+        setError(false);
+      } catch (error) {
+        setError(error);
+        setLoading(false);
+      }
+    };
+
+    fetchLeagueData();
+  }, [leagueID]);
+
+  if (!leagueID) {
+    return <div className="text-3xl">Enter a League ID to view the summary</div>;
+  }
+
+  if (error) {
+    return <div>Error: Please Enter a Valid ID</div>;
+  }
+
+  if (!leagueData || leagueData.league.scoring != "h") {
+    return <div>Please Enter a valid league</div>;
+  }
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div id="league-charts" className="card chart">
+      <div id="league-summary-container">
+        <div>
+          <h2 className="mb-6 text-center text-xl font-bold text-gray-800">{leagueData.league.name}</h2>
+          <div>
+            <LeagueDataContext.Provider value={leagueData}>
+              <DraftStandings members={joinData(leagueData.league_entries, leagueData.standings)}></DraftStandings>
+              <BubbleChartComponent></BubbleChartComponent>
+              <ScoreByPosition data={pointsByPosition}></ScoreByPosition>
+              <XWinsComponent></XWinsComponent>
+            </LeagueDataContext.Provider>
           </div>
         </div>
       </div>

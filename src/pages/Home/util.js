@@ -1,83 +1,111 @@
 import * as d3 from "d3";
 import { getPlayerLineup } from "./api.js";
+import { LeagueDataContext } from "./contex.js";
+import { useContext } from "react";
+import { use } from "react";
 
-const PLAYER_POSITIONS = await fetch("public/data/player-positions.csv")
+const PLAYER_POSITIONS_PROMISE = fetch("src/data/player-positions.csv")
   .then((response) => response.text())
   .then((text) => d3.csvParse(text))
-  .catch((error) => console.error("Error fetching CSV:", error));
+  .catch((error) => {
+    console.error("Error fetching CSV:", error);
+    return [];
+  });
 
-const PLAYER_DATA = await fetch("public/data/player-data.json")
+const PLAYER_DATA_PROMISE = fetch("src/data/player-data.json")
   .then((response) => response.json())
-  .then((data) => {
-    return data;
-  })
-  .catch((error) => console.error("Error fetching JSON:", error));
-const GAMEWEEK = PLAYER_DATA.length;
+  .catch((error) => {
+    console.error("Error fetching JSON:", error);
+    return [];
+  });
+
+// This function loads both files in parallel.
+async function loadData() {
+  const [PLAYER_POSITIONS, PLAYER_DATA] = await Promise.all([PLAYER_POSITIONS_PROMISE, PLAYER_DATA_PROMISE]);
+  return { PLAYER_POSITIONS, PLAYER_DATA };
+}
+
+// Cache the loaded data so that it is only read once.
+let cachedData = null;
+
+export async function getCachedData() {
+  if (!cachedData) {
+    cachedData = await loadData();
+  }
+  return cachedData;
+}
 
 /***
  * @param {number} playerId
  * @returns {Promise<Array>} an array of player points for each gameweek
  */
 
-async function computePlayerPoints(playerId) {
-  let lineups = [];
-  let wasted_players = 0;
+async function playerPointsSummary(playerId) {
+  const { PLAYER_POSITIONS, PLAYER_DATA } = await getCachedData();
+  const GAMEWEEK = PLAYER_DATA.length;
+  //let wasted_players = 0;
 
   // create an array of promises for each gameweek
-  const gameweekPromises = Array.from({ length: GAMEWEEK }, (_, i) => {
-    const lineup = getPlayerLineup(i + 1, playerId);
-  });
-  for (let i = 1; i <= GAMEWEEK; i++) {
-    const lineup = await getPlayerLineup(i, playerId);
-    const playerIds = lineup.picks.slice(0, 12).map((pick) => {
-      if (PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.minutes == 0) {
-        wasted_players++;
+  const gameweekPromises = Array.from({ length: GAMEWEEK }, async (_, i) => {
+    const lineup = await getPlayerLineup(i + 1, playerId);
+    return lineup.picks.slice(0, 11).map((pick) => {
+      // if (PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.minutes == 0) {
+      //   wasted_players++;
+      // }'
+      const player = PLAYER_DATA[i]["elements"][pick.element - 1];
+      const posRecord = PLAYER_POSITIONS.find((row) => +row.id === pick.element);
+      if (!posRecord) {
+        console.error(`Position not found for player ID: ${pick.element}`);
       }
       return {
-        points:
-          PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.total_points,
-        positions: PLAYER_POSITIONS[pick.element - 1]["position"],
+        points: player.stats.total_points,
+        positions: posRecord.position,
         id: pick.element,
-        goals:
-          PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.goals_scored,
-        assists: PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.assists,
-        clean_sheets:
-          PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.clean_sheets,
-        minutes: PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.minutes,
-        yellow_cards:
-          PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.yellow_cards,
-        red_cards:
-          PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.red_cards,
-        goals_conceded:
-          PLAYER_DATA[i - 1]["elements"][pick.element - 1].stats.goals_conceded,
+        goals: player.stats.goals_scored,
+        assists: player.stats.assists,
+        clean_sheets: player.stats.clean_sheets,
+        minutes: player.stats.minutes,
+        yellow_cards: player.stats.yellow_cards,
+        red_cards: player.stats.red_cards,
+        goals_conceded: player.stats.goals_conceded,
       };
     });
-    lineups.push(playerIds);
-  }
-  return lineups;
+  });
+
+  return await Promise.all(gameweekPromises);
 }
 
-async function getSummaryStatPoints(leagueMembers) {
-  let summaryStats = new Array();
-
+async function leaguePointsSummary(leagueMembers) {
+  let data = new Map();
   // Create an array of promises for computing player points
-  const playerPointsPromises = leagueMembers.map((member) =>
-    computePlayerPoints(member.entry_id),
-  );
+  const playerPointsPromises = leagueMembers.map(async (member) => {
+    await playerPointsSummary(member.entry_id).then((points) => {
+      data.set(member.entry_id, points);
+      return points;
+    });
+  });
 
   // Wait for all promises to resolve
-  const allPlayerPoints = await Promise.all(playerPointsPromises);
+  await Promise.all(playerPointsPromises);
+  return data;
+}
 
-  // Process the results
-  leagueMembers.forEach((member, index) => {
-    const playerPoints = allPlayerPoints[index];
+function byPositionRollup(leagueMembers, allPlayerPoints) {
+  console.log(leagueMembers);
+  console.log(allPlayerPoints);
+  let summaryStats = new Array();
+
+  leagueMembers.forEach((member) => {
+    const playerPoints = allPlayerPoints.get(member.entry_id);
+
     const summary = d3.rollup(
       playerPoints.flat(),
       (v) => d3.sum(v, (d) => d.points),
       (d) => d.positions,
     );
     summaryStats.push({
-      name: member.entry_id,
+      id: member.entry_id,
+      name: member.entry_name,
       summary: summary,
     });
   });
@@ -85,4 +113,10 @@ async function getSummaryStatPoints(leagueMembers) {
   return summaryStats;
 }
 
-export { getSummaryStatPoints };
+export function joinData(array1, array2) {
+  array1.sort((a, b) => b.id - a.id);
+  array2.sort((a, b) => b.league_entry - a.league_entry);
+  return d3.zip(array2, array1);
+}
+
+export { leaguePointsSummary, byPositionRollup };
