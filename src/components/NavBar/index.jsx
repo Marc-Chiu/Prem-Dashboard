@@ -10,7 +10,9 @@ const Navbar = () => {
         <h1 className="text-md">Premier League Dashboard</h1>
       </div>
       <div className="flex items-center gap-4">
-        <h1 className="text-md hover:underline">Source Code</h1>
+        <h1 href="https://github.com/Marc-Chiu/Prem-Dashboard" className="text-md hover:underline">
+          Source Code
+        </h1>
         <Icon icon={GITHUB_LOGO} size={20} />
         <DropDownBar />
       </div>
@@ -21,11 +23,7 @@ const Navbar = () => {
 const Icon = ({ icon, size }) => {
   return (
     <div className="">
-      <img
-        src={icon}
-        alt="Icon"
-        style={{ width: `${size}px`, height: `${size}px` }}
-      />
+      <img src={icon} alt="Icon" style={{ width: `${size}px`, height: `${size}px` }} />
     </div>
   );
 };
