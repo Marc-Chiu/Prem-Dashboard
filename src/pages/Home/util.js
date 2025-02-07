@@ -3,7 +3,7 @@ import { getPlayerLineup } from "./api.js";
 
 let cachedData = null;
 
-const PLAYER_POSITIONS_PROMISE = fetch("src/data/player-positions.csv")
+const PLAYER_POSITIONS_PROMISE = fetch("public/data/player-positions.csv")
   .then((response) => response.text())
   .then((text) => d3.csvParse(text))
   .catch((error) => {
@@ -11,7 +11,7 @@ const PLAYER_POSITIONS_PROMISE = fetch("src/data/player-positions.csv")
     return [];
   });
 
-const PLAYER_DATA_PROMISE = fetch("src/data/player-data.json")
+const PLAYER_DATA_PROMISE = fetch("public/data/player-data.json")
   .then((response) => response.json())
   .catch((error) => {
     console.error("Error fetching JSON:", error);
