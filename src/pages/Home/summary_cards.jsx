@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useContext } from "react";
 import { bubbleChart } from "src/charts/bubble.js";
 import { xWinsChart } from "src/charts/xWins.js";
 import { byPositionRollup } from "./util";
-import { LeagueDataContext } from "./contex";
+import { points_by_action } from "src/charts/points_by_action";
+import { LeagueDataContext, WeeklyPointsContext } from "./contex";
 import * as d3 from "d3";
 
 function createCircleSVG(color) {
@@ -38,7 +39,7 @@ export function DraftStandings({ members }) {
     .domain(members.map((d) => d[1].entry_name).sort((a, b) => a < b))
     .range(d3.schemeSet3);
   return (
-    <div className="grid grid-cols-3 gap-10">
+    <div className="grid grid-cols-3 gap-10 max-lg:grid-cols-1">
       {/* League Standings */}
       <div className="card standing">
         <h2 className="mb-6 text-center text-xl font-bold text-gray-800">League Standings</h2>
@@ -110,7 +111,7 @@ export function ScoreByPosition({ data }) {
   const points = byPositionRollup(leagueMembers, data);
 
   return (
-    <div className="my-3 grid grid-cols-4 gap-4">
+    <div className="my-3 grid grid-cols-4 gap-4 max-lg:grid-cols-1">
       <div className="card standing">
         <h1 className="mb-4 text-lg font-bold">Goalkeepers Points</h1>
         <ol>
@@ -169,14 +170,59 @@ export function ScoreByPosition({ data }) {
 
 export function XWinsComponent() {
   const leagueData = useContext(LeagueDataContext);
-  const chartRef = useRef(null); // Create a ref to hold the chart container
+  const [containerWidth, setContainerWidth] = useState(null);
+  const chartRef = useRef(null);
+
   useEffect(() => {
-    if (chartRef.current) {
+    function handleResize() {
+      if (chartRef.current?.parentElement) {
+        setContainerWidth(chartRef.current.parentElement.offsetWidth);
+      }
+    }
+    window.addEventListener("resize", handleResize);
+    // Get the initial width
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Redraw chart when weeklyPoints, leagueData, or containerWidth change
+  useEffect(() => {
+    if (chartRef.current && containerWidth) {
       chartRef.current.innerHTML = "";
-      const chart = xWinsChart(leagueData);
-      console.log(chart);
+      const chart = xWinsChart(leagueData, containerWidth);
       chartRef.current.appendChild(chart);
     }
-  });
+  }, [leagueData, containerWidth]);
+
+  return <div className="card standing" ref={chartRef}></div>;
+}
+
+export function PointsByAction() {
+  const weeklyPoints = useContext(WeeklyPointsContext);
+  const leagueData = useContext(LeagueDataContext);
+  const [containerWidth, setContainerWidth] = useState(null);
+  const chartRef = useRef(null);
+
+  // Update containerWidth on window resize
+  useEffect(() => {
+    function handleResize() {
+      if (chartRef.current?.parentElement) {
+        setContainerWidth(chartRef.current.parentElement.offsetWidth);
+      }
+    }
+    window.addEventListener("resize", handleResize);
+    // Get the initial width
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Redraw chart when weeklyPoints, leagueData, or containerWidth change
+  useEffect(() => {
+    if (chartRef.current && containerWidth) {
+      chartRef.current.innerHTML = "";
+      const chart = points_by_action(weeklyPoints, leagueData, containerWidth);
+      chartRef.current.appendChild(chart);
+    }
+  }, [weeklyPoints, leagueData, containerWidth]);
   return <div className="card standing m-0" ref={chartRef}></div>;
 }

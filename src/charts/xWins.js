@@ -16,9 +16,9 @@ const get_gameweek_points = (data) => {
   return week_points_median;
 };
 
-export function xWinsChart(data) {
-  const margin = { top: 40, bottom: 55, left: 30, right: 10 };
-  const visWidth = window.innerWidth - 300 - margin.left - margin.right; // set the width the be the max width allowed by the screen
+export function xWinsChart(data, containerWidth) {
+  const margin = { top: 40, bottom: 55, left: 30, right: 60 };
+  const visWidth = containerWidth - margin.left - margin.right; // set the width the be the max width allowed by the screen
   const visHeight = 400 - margin.top - margin.bottom; // set the height to be 400
 
   const names = data.league_entries.map((d) => d.entry_name);

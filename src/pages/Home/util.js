@@ -1,8 +1,7 @@
 import * as d3 from "d3";
 import { getPlayerLineup } from "./api.js";
-import { LeagueDataContext } from "./contex.js";
-import { useContext } from "react";
-import { use } from "react";
+
+let cachedData = null;
 
 const PLAYER_POSITIONS_PROMISE = fetch("src/data/player-positions.csv")
   .then((response) => response.text())
@@ -19,14 +18,10 @@ const PLAYER_DATA_PROMISE = fetch("src/data/player-data.json")
     return [];
   });
 
-// This function loads both files in parallel.
 async function loadData() {
   const [PLAYER_POSITIONS, PLAYER_DATA] = await Promise.all([PLAYER_POSITIONS_PROMISE, PLAYER_DATA_PROMISE]);
   return { PLAYER_POSITIONS, PLAYER_DATA };
 }
-
-// Cache the loaded data so that it is only read once.
-let cachedData = null;
 
 export async function getCachedData() {
   if (!cachedData) {
@@ -35,12 +30,14 @@ export async function getCachedData() {
   return cachedData;
 }
 
+// function calcPoint(position, )
+
 /***
  * @param {number} playerId
  * @returns {Promise<Array>} an array of player points for each gameweek
  */
 
-async function playerPointsSummary(playerId) {
+async function playerPointsSummary(playerId, name) {
   const { PLAYER_POSITIONS, PLAYER_DATA } = await getCachedData();
   const GAMEWEEK = PLAYER_DATA.length;
   //let wasted_players = 0;
@@ -62,12 +59,30 @@ async function playerPointsSummary(playerId) {
         positions: posRecord.position,
         id: pick.element,
         goals: player.stats.goals_scored,
+        goals_points:
+          posRecord.position == "Goalkeepers" || posRecord.position == "Defenders"
+            ? player.stats.goals_scored * 6
+            : posRecord.position == "Defenders"
+              ? player.stats.goals_scored * 5
+              : player.stats.goals_scored * 4,
         assists: player.stats.assists,
+        assists_points: player.stats.assists * 3,
         clean_sheets: player.stats.clean_sheets,
+        clean_sheet_points:
+          player.stats.clean_sheets == 0
+            ? 0
+            : posRecord.position == "Goalkeepers" || posRecord.position == "Defenders"
+              ? 4
+              : posRecord.position == "Midfielders"
+                ? 1
+                : 0,
         minutes: player.stats.minutes,
+        minutes_points: player.stats.minutes > 60 ? 2 : player.stats.minutes > 0 ? 1 : 0,
         yellow_cards: player.stats.yellow_cards,
         red_cards: player.stats.red_cards,
         goals_conceded: player.stats.goals_conceded,
+        player_id: playerId,
+        player_name: name,
       };
     });
   });
@@ -79,7 +94,7 @@ async function leaguePointsSummary(leagueMembers) {
   let data = new Map();
   // Create an array of promises for computing player points
   const playerPointsPromises = leagueMembers.map(async (member) => {
-    await playerPointsSummary(member.entry_id).then((points) => {
+    await playerPointsSummary(member.entry_id, member.player_first_name).then((points) => {
       data.set(member.entry_id, points);
       return points;
     });
@@ -91,8 +106,6 @@ async function leaguePointsSummary(leagueMembers) {
 }
 
 function byPositionRollup(leagueMembers, allPlayerPoints) {
-  console.log(leagueMembers);
-  console.log(allPlayerPoints);
   let summaryStats = new Array();
 
   leagueMembers.forEach((member) => {

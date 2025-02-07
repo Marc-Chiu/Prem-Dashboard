@@ -5,10 +5,11 @@ import {
   DraftStandings,
   ScoreByPosition,
   XWinsComponent,
+  PointsByAction,
 } from "src/pages/Home/summary_cards.jsx";
 import { getLeagueData } from "src/pages/Home/api.js";
 import { leaguePointsSummary, joinData } from "src/pages/Home/util.js";
-import { LeagueDataContext } from "src/pages/Home/contex.js";
+import { LeagueDataContext, WeeklyPointsContext } from "src/pages/Home/contex.js";
 
 export function LeagueSummaryComponent() {
   const [selectedLeagueID, setSelectedLeagueID] = useState(null);
@@ -53,7 +54,7 @@ export function LeagueSummaryComponent() {
 function Graphs({ leagueID }) {
   const [loading, setLoading] = useState(true);
   const [leagueData, setLeagueData] = useState(null);
-  const [pointsByPosition, setPointsByPosition] = useState(null);
+  const [weeklyPoints, setPointsByPosition] = useState(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -63,9 +64,9 @@ function Graphs({ leagueID }) {
     const fetchLeagueData = async () => {
       try {
         const data = await getLeagueData(leagueID);
-        const pointsByPosition = await leaguePointsSummary(data.league_entries);
+        const weeklyPoints = await leaguePointsSummary(data.league_entries);
         setLeagueData(data);
-        setPointsByPosition(pointsByPosition);
+        setPointsByPosition(weeklyPoints);
         setLoading(false);
         setError(false);
       } catch (error) {
@@ -98,12 +99,15 @@ function Graphs({ leagueID }) {
       <div id="league-summary-container">
         <div>
           <h2 className="mb-6 text-center text-xl font-bold text-gray-800">{leagueData.league.name}</h2>
-          <div>
+          <div className="grid grid-cols-1 gap-4">
             <LeagueDataContext.Provider value={leagueData}>
-              <DraftStandings members={joinData(leagueData.league_entries, leagueData.standings)}></DraftStandings>
-              <BubbleChartComponent></BubbleChartComponent>
-              <ScoreByPosition data={pointsByPosition}></ScoreByPosition>
-              <XWinsComponent></XWinsComponent>
+              <WeeklyPointsContext.Provider value={weeklyPoints}>
+                <DraftStandings members={joinData(leagueData.league_entries, leagueData.standings)}></DraftStandings>
+                <BubbleChartComponent></BubbleChartComponent>
+                <ScoreByPosition data={weeklyPoints}></ScoreByPosition>
+                <XWinsComponent></XWinsComponent>
+                <PointsByAction></PointsByAction>
+              </WeeklyPointsContext.Provider>
             </LeagueDataContext.Provider>
           </div>
         </div>
